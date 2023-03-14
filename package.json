@@ -1,0 +1,20 @@
+{
+  "name": "js-sandbox",
+  "version": "1.0.0",
+  "description": "乾坤的JS隔离机制原理剖析",
+  "main": "src/SnapshotSandBox.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zuopf769/js-sandbox.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zuopf769/js-sandbox/issues"
+  },
+  "homepage": "https://github.com/zuopf769/js-sandbox#readme"
+}

@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+      "editorconfig.editorconfig",
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint",
+      "stylelint.vscode-stylelint",
+      "wangzy.sneak-mark",
+      "voorjaar.windicss-intellisense",
+      "streetsidesoftware.code-spell-checker",
+      "usernamehw.errorlens"
+    ]
+}
