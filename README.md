@@ -270,3 +270,91 @@ console.log('window:window.city:', window.city)
 从上面的代码可以发现，`ProxySandbox`，完全不存在状态恢复的逻辑，同时也不需要记录属性值的变化，因为所有的变化都是沙箱内部的变化，和 `window` 没有关系，`window` 上的属性至始至终都没有受到过影响。
 
 `Proxy` 是新 `ES6` 的新事物，低版本浏览器无法兼容所以 `SnapshotSandbox `还会长期存在
+
+## 乾坤的三个沙箱的源码分析
+
+### SnapshotSandbox 源码解析
+
+[源码](https://github.com/liyongning/qiankun/blob/master/src/sandbox/snapshotSandbox.ts)
+
+```ts
+/**
+ * @author Hydrogen
+ * @since 2020-3-8
+ */
+import { SandBox, SandBoxType } from '../interfaces'
+
+function iter(obj: object, callbackFn: (prop: any) => void) {
+  // eslint-disable-next-line guard-for-in, no-restricted-syntax
+  for (const prop in obj) {
+    if (obj.hasOwnProperty(prop)) {
+      callbackFn(prop)
+    }
+  }
+}
+
+/**
+ * 基于 diff 方式实现的沙箱，用于不支持 Proxy 的低版本浏览器
+ */
+export default class SnapshotSandbox implements SandBox {
+  proxy: WindowProxy
+
+  name: string
+
+  type: SandBoxType
+
+  // 沙箱是否在运行中
+  sandboxRunning = true
+  // 存放激活之前window所有原始属性值的快照
+  private windowSnapshot!: Window
+  // 存放激活之后window所有修改和添加的属性值
+  private modifyPropsMap: Record<any, any> = {}
+
+  constructor(name: string) {
+    // 沙箱的名字
+    this.name = name
+    // 沙箱导出的代理实体
+    this.proxy = window
+    // 沙箱的类型
+    this.type = SandBoxType.Snapshot
+  }
+
+  // 启动沙箱
+  active() {
+    // 记录当前快照
+    this.windowSnapshot = {} as Window
+    // 遍历window的所有key，存放在windowSnapshot上，供失活的时候恢复用
+    iter(window, prop => {
+      this.windowSnapshot[prop] = window[prop]
+    })
+
+    // 恢复上次激活该微应用时修改的prop的值到window上
+    Object.keys(this.modifyPropsMap).forEach((p: any) => {
+      window[p] = this.modifyPropsMap[p]
+    })
+
+    this.sandboxRunning = true
+  }
+
+  // 关闭沙箱
+  inactive() {
+    // 清空modifyPropsMap
+    this.modifyPropsMap = {}
+
+    iter(window, prop => {
+      if (window[prop] !== this.windowSnapshot[prop]) {
+        // 记录变更到modifyPropsMap
+        this.modifyPropsMap[prop] = window[prop]
+        // 恢复环境到激活该微应用之前的状态
+        window[prop] = this.windowSnapshot[prop]
+      }
+    })
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info(`[qiankun:sandbox] ${this.name} origin window restore...`, Object.keys(this.modifyPropsMap))
+    }
+
+    this.sandboxRunning = false
+  }
+}
+```
