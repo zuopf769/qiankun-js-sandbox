@@ -44,3 +44,9 @@ console.log('window.city-02:', window.city) // undefined
 snapshotSandBox.active() // 再次激活，恢复到上次微前端修改后的状态
 console.log('window.city-03:', window.city) // Beijing
 snapshotSandBox.inactive()
+
+// 输出：
+// window.city-00: undefined
+// window.city-01: Beijing
+// window.city-02: undefined
+// window.city-03: Beijing
