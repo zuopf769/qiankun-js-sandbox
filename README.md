@@ -117,3 +117,93 @@ snapshotSandBox.inactive()
 - 会改变全局 `window` 的属性，如果同时运行多个微应用，多个应用同时改写 `window`上的属性，势必会出现状态混乱，这也就是为什么快照沙箱无法支持多各微应用同时运行的原因。关于这个问题，下文中支持多应用的代理沙箱可以很好的解决这个问题；
 
 - 会通过 `for(prop in window){}`的方式来遍历 `window` 上的所有属性，`window` 属性众多，这其实是一件很耗费性能的事情。关于这个问题支持单应用的代理沙箱和支持多应用的代理沙箱都可以规避。
+
+## 支持单应用的代理沙箱-极简版
+
+```JavaScript
+// 支持单应用的代理沙箱
+// 不能遍历window的所有属性
+class LegacySandBox {
+  // 沙箱期间新增的全局变量
+  addedPropsMapInSandbox = new Map()
+  // 沙箱期间更新的全局变量-存放要修改的属性的原始值OriginalValue
+  modifiedPropsOriginalValueMapInSandbox = new Map()
+  // 持续记录更新的(新增和修改的)全局变量的 map，用于在任意时刻做 snapshot
+  currentUpdatedPropsValueMap = new Map()
+  // 代理window对象，用户不要直接操作window对象，而是使用proxyWindow来新增修改属性
+  proxyWindow
+
+  constructor() {
+    // 假的window
+    const fakeWindow = Object.create(null)
+    // 代理window对象
+    this.proxyWindow = new Proxy(fakeWindow, {
+      set: (target, prop, value, receiver) => {
+        // 给代理window上新增属性
+        if (!window.hasOwnProperty(prop)) {
+          this.addedPropsMapInSandbox.set(prop, value)
+        } else if (!this.modifiedPropsOriginalValueMapInSandbox.has(prop)) {
+          // 要修改window的已经有的prop的原始值
+          const originalVal = window[prop]
+          // 修改代理window上原本的属性，需要保留没有修改之前的该属性值，用于失活的时候恢复
+          this.modifiedPropsOriginalValueMapInSandbox.set(prop, originalVal)
+        }
+        // 该沙箱激活时当前全局变量的快照
+        this.currentUpdatedPropsValueMap.set(prop, value)
+        // 将激活该微应用时修改和添加的属性设置到window全局变量上
+        window[prop] = value
+      },
+      get: (target, prop, receiver) => {
+        return window[prop]
+      }
+    })
+  }
+
+  setWindowProp(prop, value, toDelete = false) {
+    if (value === undefined && toDelete) {
+      delete window[prop]
+    } else {
+      window[prop] = value
+    }
+  }
+
+  // 激活当前微应用
+  active() {
+    // 恢复上一次运行该微应用的时候所修改过的属性到windows
+    this.currentUpdatedPropsValueMap.forEach((value, prop) => this.setWindowProp(prop, value))
+  }
+
+  // 当前微应用失活-还原window上所有的属性
+  inactive() {
+    // 新添加到window上的属性删除
+    this.addedPropsMapInSandbox.forEach((value, prop) => this.setWindowProp(prop, undefined, true))
+    // 修改window上的属性的值还原为没修改之前的值
+    this.modifiedPropsOriginalValueMapInSandbox.forEach((value, prop) => this.setWindowProp(prop, value))
+  }
+}
+
+// 验证:
+let legacySandBox = new LegacySandBox()
+console.log('window.city-00:', window.city) // undefined 激活之前window上没有city属性
+legacySandBox.active() // 激活
+legacySandBox.proxyWindow.city = 'Beijing' // 激活后给window上设置city属性
+console.log('window.city-01:', window.city) // Beijing
+legacySandBox.inactive() // 失活后window上的属性恢复到原本的状态
+console.log('window.city-02:', window.city) // undefined
+legacySandBox.active() // 再次激活，恢复到上次微前端修改后的状态
+console.log('window.city-03:', window.city) // Beijing
+legacySandBox.inactive()
+
+// 输出：
+// window.city-00: undefined
+// window.city-01: Beijing
+// window.city-02: undefined
+// window.city-03: Beijing
+
+```
+
+从上面的代码可以看出，其实现的功能和快照沙箱是一模一样的，不同的是，通过三个变量来记住沙箱激活后 window 发生变化过的所有属性，这样在后续的状态还原时候就不再需要遍历 window 的所有属性来进行对比，提升了程序运行的性能。
+
+**存在问题**
+
+但是这仍然改变不了这种机制仍然污染了 window 的状态的事实，因此也就无法承担起同时支持多个微应用运行的任务。
