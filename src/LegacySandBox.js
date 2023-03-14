@@ -36,6 +36,7 @@ class LegacySandBox {
     })
   }
 
+  // 还是往window上写属性，所以不支持多应用
   setWindowProp(prop, value, toDelete = false) {
     if (value === undefined && toDelete) {
       delete window[prop]
