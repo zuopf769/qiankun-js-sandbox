@@ -8,6 +8,7 @@ class SnapshotSandBox {
   // 激活当前微应用，激活后直接往window对象上添加和删除prop
   active() {
     // 保存window上的所有属性的状态
+    // 缺点就是需要遍历windows上的所有属性，包括那些不是咱们应用的属性
     for (const prop in window) {
       this.windowSnapshot[prop] = window[prop]
     }
