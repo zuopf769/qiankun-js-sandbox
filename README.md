@@ -202,8 +202,71 @@ legacySandBox.inactive()
 
 ```
 
-从上面的代码可以看出，其实现的功能和快照沙箱是一模一样的，不同的是，通过三个变量来记住沙箱激活后 window 发生变化过的所有属性，这样在后续的状态还原时候就不再需要遍历 window 的所有属性来进行对比，提升了程序运行的性能。
+从上面的代码可以看出，其实现的功能和快照沙箱是一模一样的，不同的是，通过三个变量来记住沙箱激活后`window`发生变化过的所有属性，这样在后续的状态还原时候就不再需要遍历`window`的所有属性来进行对比，提升了程序运行的性能。
 
 **存在问题**
 
-但是这仍然改变不了这种机制仍然污染了 window 的状态的事实，因此也就无法承担起同时支持多个微应用运行的任务。
+但是这仍然改变不了这种机制仍然污染了`window`的状态的事实，因此也就无法承担起同时支持多个微应用运行的任务。
+
+## 支持多应用的代理沙箱-极简版
+
+```JavaScript
+// 支持多应用的代理沙箱
+class ProxySandBox {
+  proxyWindow
+  isRunning = false
+
+  active() {
+    this.isRunning = true
+  }
+
+  inactive() {
+    this.isRunning = false
+  }
+
+  constructor() {
+    const fakeWindow = Object.create(null)
+    this.proxyWindow = new Proxy(fakeWindow, {
+      set: (target, prop, value, receiver) => {
+        if (this.isRunning) {
+          target[prop] = value
+        }
+      },
+      get: (target, prop, receiver) => {
+        return prop in target ? target[prop] : window[prop]
+      }
+    })
+  }
+}
+
+// 验证：
+let proxySandBox1 = new ProxySandBox()
+let proxySandBox2 = new ProxySandBox()
+proxySandBox1.active()
+proxySandBox2.active()
+proxySandBox1.proxyWindow.city = 'Beijing'
+proxySandBox2.proxyWindow.city = 'Shanghai'
+console.log('active:proxySandBox1:window.city:', proxySandBox1.proxyWindow.city)
+console.log('active:proxySandBox2:window.city:', proxySandBox2.proxyWindow.city)
+console.log('window:window.city:', window.city)
+proxySandBox1.inactive()
+proxySandBox2.inactive()
+proxySandBox1.proxyWindow.city = 'Beijing2'
+proxySandBox2.proxyWindow.city = 'Shanghai2'
+console.log('inactive:proxySandBox1:window.city:', proxySandBox1.proxyWindow.city)
+console.log('inactive:proxySandBox2:window.city:', proxySandBox2.proxyWindow.city)
+console.log('window:window.city:', window.city)
+
+// 输出：
+// active:proxySandBox1:window.city: Beijing
+// active:proxySandBox2:window.city: Shanghai
+// window:window.city: undefined
+// inactive:proxySandBox1:window.city: Beijing
+// inactive:proxySandBox2:window.city: Shanghai
+// window:window.city: undefined
+
+```
+
+从上面的代码可以发现，`ProxySandbox`，完全不存在状态恢复的逻辑，同时也不需要记录属性值的变化，因为所有的变化都是沙箱内部的变化，和 `window` 没有关系，`window` 上的属性至始至终都没有受到过影响。
+
+`Proxy` 是新 `ES6` 的新事物，低版本浏览器无法兼容所以 `SnapshotSandbox `还会长期存在
